@@ -41,6 +41,7 @@ import Darwin
                 .task {
                     let streamProbe = ProcessInfo.processInfo.arguments.contains("--task-pip-probe") && ProcessInfo.processInfo.arguments.contains("--background-stream-probe")
                     if !streamProbe { PairingFlow.shared.restoreConnection() }
+                    PhoneAgentRuntime.shared.mcp.restoreIfEnabled()
                     statusPiP.setBackgroundMode(BackgroundPlaybackMode(rawValue: backgroundMode) ?? .defaultMode)
                     statusPiP.setBackgroundResident(backgroundResident)
                     model.liveActivities.setBackgroundResident(backgroundResident)

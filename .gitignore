@@ -13,6 +13,7 @@ __pycache__/
 *pairing_record*
 .env
 .DS_Store
+ios-app/signing.local.json
 
 firmware-device/managed_components/
 firmware-device/sdkconfig

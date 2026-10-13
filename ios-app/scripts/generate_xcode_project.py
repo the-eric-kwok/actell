@@ -8,6 +8,19 @@ import os
 ROOT = Path(__file__).resolve().parents[1]
 objects = {}
 
+# Git-ignored local signing overrides survive regeneration. Optional keys:
+# DEVELOPMENT_TEAM, BUNDLE_ID_PREFIX (app = prefix, others = prefix.<suffix>).
+SIGNING_OVERRIDES = {}
+_signing_path = ROOT / "signing.local.json"
+if _signing_path.exists():
+    SIGNING_OVERRIDES = json.loads(_signing_path.read_text())
+
+
+def bundle_identifier(name):
+    prefix = SIGNING_OVERRIDES.get("BUNDLE_ID_PREFIX", "com.guoyaoming.actell")
+    suffix = name.removeprefix("PhoneAgent")
+    return prefix if not suffix else prefix + "." + suffix
+
 
 def uid(name):
     return hashlib.sha256(name.encode()).hexdigest()[:24].upper()
@@ -108,8 +121,8 @@ def generate():
         phases = [add(name + "Sources", "PBXSourcesBuildPhase", buildActionMask=2147483647, files=sources, runOnlyForDeploymentPostprocessing=0),
                   add(name + "Frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647, files=frameworks, runOnlyForDeploymentPostprocessing=0),
                   add(name + "Resources", "PBXResourcesBuildPhase", buildActionMask=2147483647, files=resources, runOnlyForDeploymentPostprocessing=0)]
-        settings = dict(PRODUCT_NAME="$(TARGET_NAME)", PRODUCT_BUNDLE_IDENTIFIER="com.ja1chen." + name,
-                        CODE_SIGN_STYLE="Automatic", DEVELOPMENT_TEAM="", GENERATE_INFOPLIST_FILE="YES",
+        settings = dict(PRODUCT_NAME="$(TARGET_NAME)", PRODUCT_BUNDLE_IDENTIFIER=bundle_identifier(name),
+                        CODE_SIGN_STYLE="Automatic", DEVELOPMENT_TEAM=SIGNING_OVERRIDES.get("DEVELOPMENT_TEAM", ""), GENERATE_INFOPLIST_FILE="YES",
                         TARGETED_DEVICE_FAMILY="1,2", SUPPORTED_PLATFORMS="iphoneos iphonesimulator",
                         SUPPORTS_MACCATALYST="NO", MARKETING_VERSION="0.1.0", CURRENT_PROJECT_VERSION="1",
                         LD_RUNPATH_SEARCH_PATHS=["$(inherited)", "@executable_path/Frameworks"])
@@ -117,7 +130,7 @@ def generate():
         if name == "PhoneAgent":
             settings.update(ASSETCATALOG_COMPILER_APPICON_NAME="AppIcon", INFOPLIST_FILE="PhoneAgent/Info.plist", INFOPLIST_KEY_CFBundleDisplayName="$(APP_DISPLAY_NAME)",
                             INFOPLIST_KEY_NSSupportsLiveActivities="YES",
-                            INFOPLIST_KEY_NSLocalNetworkUsageDescription="Connect to your explicitly paired development bridge while this app is open.",
+                            INFOPLIST_KEY_NSLocalNetworkUsageDescription="Connect to your explicitly paired development bridge, and let LAN MCP clients discover and reach this phone when the MCP service is enabled.",
                             INFOPLIST_KEY_UIApplicationSceneManifest_Generation="YES",
                             INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents="YES",
                             INFOPLIST_KEY_UILaunchScreen_Generation="YES")
@@ -137,7 +150,7 @@ def generate():
             proxy = add("LiveActivityProxy", "PBXContainerItemProxy", containerPortal=uid("Project"), proxyType=1, remoteGlobalIDString=uid(widget + "Target"), remoteInfo=widget)
             dependencies.append(add("LiveActivityDependency", "PBXTargetDependency", target=uid(widget + "Target"), targetProxy=proxy))
         elif name == "PhoneAgentLiveActivity":
-            settings.update(PRODUCT_BUNDLE_IDENTIFIER="com.ja1chen.PhoneAgent.LiveActivity", INFOPLIST_FILE="PhoneAgentLiveActivity/Info.plist",
+            settings.update(PRODUCT_BUNDLE_IDENTIFIER=bundle_identifier("PhoneAgent") + ".LiveActivity", INFOPLIST_FILE="PhoneAgentLiveActivity/Info.plist",
                             INFOPLIST_KEY_CFBundleDisplayName="$(APP_DISPLAY_NAME)", APPLICATION_EXTENSION_API_ONLY="YES", SKIP_INSTALL="YES",
                             LD_RUNPATH_SEARCH_PATHS=["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"])
         else:

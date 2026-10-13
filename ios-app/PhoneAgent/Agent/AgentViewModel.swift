@@ -61,6 +61,8 @@ struct AgentRunServices {
     private var activeActionCallID: String?
     private var activityHandoffRun: RunIdentity?
     private var runIdentity: RunIdentity?
+    /// Set by the runtime: non-nil reason while an external MCP client holds input.
+    var externalInputBusyReason: (@MainActor () -> String?)?
     var ownedRun: RunIdentity? { runIdentity }
     var currentRun: RunIdentity? {
         if let id = selectedConversationID, let run = sessionRuntimes[id]?.ownedRun { return run }
@@ -545,6 +547,7 @@ struct AgentRunServices {
             return false
         }
         guard !running else { return reject("running", "此会话已有任务正在执行") }
+        if let reason = appOwner.externalInputBusyReason?() { return reject("externalInputBusy", reason) }
         guard !stopping else { return reject("stopping", "此会话的上一任务正在停止，请稍后重试") }
         guard !appOwner.clearingAssets else { return reject("clearingAssets", "正在清理文件，请稍后重试") }
         guard foreground || (allowBackgroundStart && commandCanStart) else { return reject("notForeground", "执言尚未进入前台，任务未开始") }

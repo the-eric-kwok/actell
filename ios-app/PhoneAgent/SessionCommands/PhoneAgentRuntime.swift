@@ -1,13 +1,33 @@
 import Foundation
+import UIKit
+import UserNotifications
 
 /// There is one app process, one conversation store, and independently lifecycle-managed conversation runners.
 @MainActor final class PhoneAgentRuntime {
     static let shared = PhoneAgentRuntime()
     let model: AgentViewModel
     let commands: SessionCommandService
+    let mcp: MCPServerModel
     private init() {
-        model = Self.makeModel()
+        let model = Self.makeModel()
+        self.model = model
         commands = SessionCommandService(sessions: model.sessions, runner: model)
+        let mcp = MCPServerModel(makeBridge: { try NCMDeviceBridge() },
+                                 localAgentBusyReason: { [weak model] in
+                                     model?.hasBusySessions == true ? "本机 agent 任务正在运行" : nil
+                                 })
+        self.mcp = mcp
+        mcp.notifyPendingDevice = { identity in
+            guard UIApplication.shared.applicationState != .active else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "新设备请求连接 MCP"
+            content.body = "\(identity)\n请在 60 秒内打开执言确认"
+            content.sound = .default
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "mcp.device.\(identity)", content: content, trigger: nil))
+        }
+        model.externalInputBusyReason = { [weak mcp] in
+            mcp?.hasInFlightInput == true ? "外部 MCP 客户端正在执行输入动作，请稍后再试" : nil
+        }
     }
     #if DEBUG
     private var invokedSiriFixture = false

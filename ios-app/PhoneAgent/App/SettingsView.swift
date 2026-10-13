@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: AgentViewModel
+    var mcp: MCPServerModel? = nil
     @Environment(\.dismiss) private var dismiss
     @AppStorage(BackgroundPlaybackMode.defaultsKey) private var backgroundMode = BackgroundPlaybackMode.defaultMode.rawValue
     @AppStorage(BackgroundPlaybackMode.residentDefaultsKey) private var backgroundResident = false
@@ -26,6 +27,11 @@ struct SettingsView: View {
                     NavigationLink { ESP32ControlSettingsView() } label: {
                         Text("连接与验证")
                     }.accessibilityIdentifier("esp32ControlSettings")
+                    if let mcp {
+                        NavigationLink { MCPSettingsView(mcp: mcp) } label: {
+                            LabeledContent("MCP 服务", value: mcp.running ? "已开启" : "未开启")
+                        }.accessibilityIdentifier("mcpServerSettings")
+                    }
                 }
                 Section {
                     Picker("执行模式", selection: $backgroundMode) {

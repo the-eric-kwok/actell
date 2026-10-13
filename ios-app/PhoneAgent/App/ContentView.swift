@@ -61,9 +61,10 @@ struct ContentView: View {
             }
             .sheet(item: $panel) { item in
                 switch item {
-                case .settings: SettingsView(model: model)
+                case .settings: SettingsView(model: model, mcp: PhoneAgentRuntime.shared.mcp)
                 }
             }
+            .modifier(MCPApprovalPresenter(mcp: PhoneAgentRuntime.shared.mcp))
 
         }
         .onOpenURL { url in

@@ -12,7 +12,7 @@ The app uses [SwiftAgentKit](https://github.com/ayman3000/SwiftAgentKit), [MacPa
 
 The initial idea was to emulate peripherals such as keyboards and mice with an ESP32, control the iPhone through its standard peripheral support, and eventually expose a standard MCP interface for other agents. Exploration revealed limitations: inefficient Chinese text entry through keyboard/mouse input, demanding hardware requirements for USB-C DP Alt Mode capture, and app-based screen recording occupying the recording channel. The current approach therefore uses CoreDevice services for screen capture and touch input.
 
-The ESP32-S3 currently provides USB NCM networking, discovery, and restricted bidirectional data forwarding. The app handles pairing identities, authentication, and control protocols; iPhone system services provide the screen content and execute touch input. CoreDevice access also allows exploration of a local connection through Network Extension, so an ESP32 is not required for that route. The app now supports VPN loopback, verified with LocalDevVPN, sharing the same pairing identity and CoreDevice backend. This repository does not implement or manage its own Network Extension. A standard MCP interface remains planned and is not implemented.
+The ESP32-S3 currently provides USB NCM networking, discovery, and restricted bidirectional data forwarding. The app handles pairing identities, authentication, and control protocols; iPhone system services provide the screen content and execute touch input. CoreDevice access also allows exploration of a local connection through Network Extension, so an ESP32 is not required for that route. The app now supports VPN loopback, verified with LocalDevVPN, sharing the same pairing identity and CoreDevice backend. This repository does not implement or manage its own Network Extension. The app now also includes a LAN MCP server mode (see below) that exposes the same device tools to external MCP clients.
 
 ## Current capabilities and limits
 
@@ -23,6 +23,22 @@ The ESP32-S3 currently provides USB NCM networking, discovery, and restricted bi
 - Audio and picture-in-picture modes are available for background execution, but system suspension, termination, screen locking, or connection failures can still stop tasks. Background reliability has not been broadly validated. The older ScreenCaptureKit/PA3 USB HID and TLS implementations remain in the repository; there is currently no switch to select the older route.
 
 These statements reflect the current source and validation records in the project. Results from different routes, devices, and historical stages are not interchangeable. See [project tasks and validation](docs/PROJECT-TODOS.md), [video geometry and frame completeness](docs/ncm-coredevice/VIDEO-GEOMETRY.md), and [VPN loopback setup and validation](docs/ncm-coredevice/LOCALDEVVPN.md).
+
+## LAN MCP server mode
+
+Settings → Phone Control → MCP Service starts a Streamable HTTP MCP server on the LAN (default port 27300, configurable) and advertises it over Bonjour as `_mcp._tcp`. It exposes the same device tools as the built-in agent (`screenshot`, `tap`, `drag`, `home`, `list_apps`, `launch_app`, `type_text`, `wait`; derived from the same definitions, `finish` excluded), executing them through the same coordinator with the same input mutual exclusion, screenshot-reference binding, no-replay-on-unknown-outcome, and stop/release semantics. MCP input calls are refused with a busy error while a local agent run owns the device, and vice versa.
+
+Authentication uses a single shared access password: generated on first enable (viewable, regenerable, or replaceable with a custom one of 16+ characters in settings, stored in the local Keychain), sent as `Authorization: Bearer <password>` on every request. **Possessing the current password is the full input authorization by default** — no per-call confirmation; each device is confirmed on this phone at first connection. Regenerating the password immediately revokes all clients and stops in-flight actions. Transport is plain HTTP and Bonjour announces the service to the whole LAN, so use it only on trusted networks; cellular interfaces are never listened on. Sessions follow the MCP `Mcp-Session-Id` convention and are reclaimed after 10 minutes of inactivity (re-`initialize` continues without re-authorization).
+
+Example Claude Code configuration (find the hostname with `dns-sd -L "<instance>" _mcp._tcp local.`):
+
+```json
+{ "mcpServers": { "actell": {
+  "type": "http", "url": "http://<device-hostname>.local:27300/mcp",
+  "headers": { "Authorization": "Bearer <access-password>" } } } }
+```
+
+Background execution relies on the same audio/PiP keep-alive paths as agent runs; system suspension or locking interrupts the service, and actions in flight across a suspension are reported as unknown outcome and never replayed.
 
 ## Setup and running
 

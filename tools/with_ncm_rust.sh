@@ -8,6 +8,13 @@ if [[ -z "$toolchain" ]]; then
         toolchain=$(rustc --print sysroot)
     elif [[ -x "${HOME}/.cargo/bin/rustc" ]]; then
         toolchain=$("${HOME}/.cargo/bin/rustc" --print sysroot)
+    elif [[ -r "${HOME}/.rustup/settings.toml" ]]; then
+        # Xcode GUI builds have a minimal PATH without cargo shims; fall back
+        # to rustup's default toolchain directory.
+        name=$(sed -n 's/^default_toolchain = "\(.*\)"$/\1/p' "${HOME}/.rustup/settings.toml")
+        if [[ -n "$name" && -x "${HOME}/.rustup/toolchains/$name/bin/rustc" ]]; then
+            toolchain="${HOME}/.rustup/toolchains/$name"
+        fi
     fi
 fi
 if [[ -z "$toolchain" || ! -x "$toolchain/bin/cargo" || ! -x "$toolchain/bin/rustc" ]]; then

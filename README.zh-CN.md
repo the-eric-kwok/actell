@@ -10,7 +10,7 @@ App 使用 [SwiftAgentKit](https://github.com/ayman3000/SwiftAgentKit)、[MacPaw
 
 ## 从 ESP32 外设到 CoreDevice
 
-最初希望通过 ESP32 模拟键盘、鼠标等外设，利用 iPhone 的通用外设能力实现控制，并在后续提供标准 MCP 接口，让各类 Agent 扩展使用。探索中遇到中文键鼠输入效率低、USB-C DP Alt Mode 画面采集对硬件要求高，以及用 App 录屏会占用录制通道等限制，因此当前改用 CoreDevice 服务获取画面和执行触控。现阶段 ESP32-S3 提供 USB NCM 网络、发现与受限双向数据转发；配对身份、认证和控制协议由 App 处理，画面与触控由 iPhone 系统服务执行。调用 CoreDevice 也可以探索 Network Extension 的本机回连路径，ESP32 不是这条路径的必要硬件：当前 App 已接入 VPN 回环路线（已用 LocalDevVPN 验证），共用配对身份和 CoreDevice 后端，但本仓库没有实现或管理自己的 Network Extension。标准 MCP 接口仍是后续规划，当前未实现。
+最初希望通过 ESP32 模拟键盘、鼠标等外设，利用 iPhone 的通用外设能力实现控制，并在后续提供标准 MCP 接口，让各类 Agent 扩展使用。探索中遇到中文键鼠输入效率低、USB-C DP Alt Mode 画面采集对硬件要求高，以及用 App 录屏会占用录制通道等限制，因此当前改用 CoreDevice 服务获取画面和执行触控。现阶段 ESP32-S3 提供 USB NCM 网络、发现与受限双向数据转发；配对身份、认证和控制协议由 App 处理，画面与触控由 iPhone 系统服务执行。调用 CoreDevice 也可以探索 Network Extension 的本机回连路径，ESP32 不是这条路径的必要硬件：当前 App 已接入 VPN 回环路线（已用 LocalDevVPN 验证），共用配对身份和 CoreDevice 后端，但本仓库没有实现或管理自己的 Network Extension。App 现已内置局域网 MCP 服务模式（见下文），向外部 MCP 客户端提供同一套设备工具。
 
 ## 当前能力与边界
 
@@ -21,6 +21,22 @@ App 使用 [SwiftAgentKit](https://github.com/ayman3000/SwiftAgentKit)、[MacPaw
 - 后台提供音频／画中画执行模式，但系统挂起、终止、锁屏或连接故障仍可能停止任务；后台稳定性没有普遍验证。旧 ScreenCaptureKit/PA3 USB HID 与 TLS 实现保留，当前没有旧链路切换开关。
 
 以上依据当前源码与项目内已有验证记录；不同路线、设备和历史阶段的结果不能互相替代。详见 [项目待办与验证](docs/PROJECT-TODOS.md)、[视频几何与帧完整性](docs/ncm-coredevice/VIDEO-GEOMETRY.md)、[VPN 回环使用与验证](docs/ncm-coredevice/LOCALDEVVPN.md)。
+
+## 局域网 MCP 服务模式
+
+设置 → 手机操控 → MCP 服务可启动一个 Streamable HTTP 的 MCP server（默认端口 27300，可修改），并以 Bonjour（`_mcp._tcp`）在局域网广播。它暴露与内置 agent 相同的设备工具（`screenshot`、`tap`、`drag`、`home`、`list_apps`、`launch_app`、`type_text`、`wait`，由同一套定义派生，不含 `finish`），经同一个协调器执行，保持输入互斥、截图参照绑定、结果未知不重放和停止释放语义。本机 agent 任务运行期间，MCP 的输入类调用返回「设备忙」错误；反之亦然。
+
+鉴权使用单一共享访问密码：首次开启自动生成（设置页可查看、重新生成或改为不少于 16 字符的自定义密码，存本机钥匙串），每个请求以 `Authorization: Bearer <密码>` 携带。**默认模式下持有当前密码即拥有完整输入授权**；不提供逐次确认模式，逐设备在首次连接时本机确认。重新生成密码会立即吊销所有客户端并终止在途动作。传输为明文 HTTP，且 Bonjour 会向整个局域网宣告服务存在，请仅在可信局域网使用；蜂窝接口一律不监听。会话遵循 MCP 的 `Mcp-Session-Id` 约定，空闲 10 分钟后回收（重新 `initialize` 即可继续，无需重新授权）。
+
+Claude Code 配置示例（用 `dns-sd -L "<实例名>" _mcp._tcp local.` 查主机名）：
+
+```json
+{ "mcpServers": { "actell": {
+  "type": "http", "url": "http://<设备主机名>.local:27300/mcp",
+  "headers": { "Authorization": "Bearer <访问密码>" } } } }
+```
+
+后台执行复用 agent 任务的音频／画中画保活路径；系统挂起或锁屏会中断服务，挂起期间在途的动作按结果未知处理，不会重放。
 
 ## 准备与运行
 

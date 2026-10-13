@@ -12,6 +12,8 @@
 
 使用已安装 Xcode 27，不更改本机签名。新增源文件后运行 `python3 ios-app/scripts/generate_xcode_project.py`（在仓库根目录）。构建缓存放 `.build/`，可使用已解析依赖的独立副本。
 
+真机签名请写入 git 忽略的 `ios-app/signing.local.json`（可选键 `DEVELOPMENT_TEAM`、`BUNDLE_ID_PREFIX`），生成脚本会自动合并，重新生成工程不会丢失；不要直接改 pbxproj 里的签名字段。示例：`{"DEVELOPMENT_TEAM": "XXXXXXXXXX"}`。
+
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   -project ios-app/PhoneAgent.xcodeproj -scheme PhoneAgent \
